@@ -1,0 +1,93 @@
+WC(1)                                                                                             General Commands Manual                                                                                            WC(1)
+
+NAME
+       wc - Print newline, word, and byte counts for each FILE, and a total line if more than one FILE is specified.
+
+SYNOPSIS
+       wc [-c|--bytes] [-m|--chars] [--files0-from] [-l|--lines] [-L|--max-line-length] [--total] [-w|--words] [-h|--help] [-V|--version] [files]
+
+DESCRIPTION
+       Print newline, word, and byte counts for each FILE, and a total line if more than one FILE is specified.
+
+OPTIONS
+       -c, --bytes
+              print the byte counts
+
+       -m, --chars
+              print the character counts
+
+       --files0-from <F>
+              read input from the files specified by NUL-terminated names in file F; If F is - then read names from standard input
+
+       -l, --lines
+              print the newline counts
+
+       -L, --max-line-length
+              print the length of the longest line
+
+       --total <WHEN>
+              when to print a line with total counts; WHEN can be: auto, always, only, never
+
+       -w, --words
+              print the word counts
+
+       -h, --help
+              Print help
+
+       -V, --version
+              Print version
+
+       [files]
+
+VERSION
+       v(uutils coreutils) 0.8.0
+
+                                                                                                        2026-04-16                                                                                                   WC(1)
+                                                                                                        2026-04-16                                                                                                   WC(1)
+
+       v(uutils coreutils) 0.8.0
+VERSION
+
+       [files]
+
+              Print version
+       -V, --version
+
+              Print help
+       -h, --help
+
+              print the word counts
+       -w, --words
+
+              when to print a line with total counts; WHEN can be: auto, always, only, never
+       --total <WHEN>
+
+              print the length of the longest line
+       -L, --max-line-length
+
+              print the newline counts
+       -l, --lines
+
+              read input from the files specified by NUL-terminated names in file F; If F is - then read names from standard input
+       --files0-from <F>
+
+              print the character counts
+       -m, --chars
+
+              print the byte counts
+       -c, --bytes
+OPTIONS
+
+       Print newline, word, and byte counts for each FILE, and a total line if more than one FILE is specified.
+DESCRIPTION
+
+       wc [-c|--bytes] [-m|--chars] [--files0-from] [-l|--lines] [-L|--max-line-length] [--total] [-w|--words] [-h|--help] [-V|--version] [files]
+SYNOPSIS
+
+       wc - Print newline, word, and byte counts for each FILE, and a total line if more than one FILE is specified.
+NAME
+
+WC(1)                                                                                             General Commands Manual                                                                                            WC(1)
+maksim
+maksim
+45
