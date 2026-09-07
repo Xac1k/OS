@@ -1,0 +1,35 @@
+# IDE - JetBrains (CLion, IntelliJ IDEA, etc.)
+.idea/
+*.iml
+cmake-build-*/
+.idea_modules/
+*.iws
+*.ipr
+
+# Build artifacts
+cmake-build-debug/
+cmake-build-release/
+*.o
+*.exe
+*.out
+*.app
+*.bkp
+
+# Compiled files
+*.obj
+*.pdb
+*.ilk
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+Makefile
+cmake_install.cmake
+*.cmake
+
+# VSCode
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
