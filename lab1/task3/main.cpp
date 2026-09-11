@@ -3,6 +3,9 @@
 #include <stdexcept>
 #include <vector>
 
+constexpr auto MB = 1024ull * 1024ull;
+constexpr auto GB = MB * 1024ull;
+
 #ifdef _WIN32
 #include <cstring>
 #include <windows.h>
@@ -11,33 +14,29 @@
 
 constexpr auto MAX_COMPUTER_NAME_LENGTH = 256;
 constexpr auto MAX_FILESYSTEM_LENGTH = 30;
-constexpr auto MB = 1024ull * 1024ull;
-constexpr auto GB = MB * 1024ull;
 
 #else
-#include <algorithm>
 #include <iostream>
 #include <ostream>
-#include <sys/utsname.h>
 #include <cerrno>
 #include <cstring>
 #include <fstream>
 #include <iomanip>
 #include <map>
 #include <sys/sysinfo.h>
-#include <unistd.h>
 #include <mntent.h>
-#include <sys/statvfs.h>
+
+#include "utils/StringUtils.h"
 #endif
 
 class SysInfo
 {
 public:
-    std::string GetOSName() const;
-    std::string GetOSVersion() const;
-    uint64_t GetFreeMemory() const;
-    uint64_t GetTotalMemory() const;
-    unsigned GetProcessorCount() const;
+    [[nodiscard]] std::string GetOSName() const;
+    [[nodiscard]] std::string GetOSVersion() const;
+    [[nodiscard]] uint64_t GetFreeMemory() const;
+    [[nodiscard]] uint64_t GetTotalMemory() const;
+    [[nodiscard]] unsigned GetProcessorCount() const;
 };
 
 #ifdef _WIN32
@@ -126,55 +125,57 @@ unsigned SysInfo::GetProcessorCount() const {
 
 #else
 
-std::string Exec(const std::string& cmd) {
-    std::string result;
-    FILE* file = popen(cmd.c_str(), "r");
+namespace Linux {
+    std::string Exec(const std::string& cmd) {
+        std::string result;
+        FILE* file = popen(cmd.c_str(), "r");
 
-    if (file == nullptr)
-    {
-        throw std::runtime_error(std::strerror(errno));
-    }
-
-    char buffer[256];
-    while (fgets(buffer, sizeof(buffer), file) != nullptr)
-    {
-        result += buffer;
-    }
-
-    pclose(file);
-    return result;
-}
-
-std::string GetOSVersion() {
-    const auto rawVersionData = Exec("lsb_release --description");
-    auto keyValuePair = Separate(rawVersionData, ':');
-    if (keyValuePair.size() != 2)
-    {
-        throw std::runtime_error("[GetOSVersion] Error while parsing version info.");
-    }
-    return keyValuePair[1];
-}
-
-std::map<std::string, unsigned long> GetRandomAccessMemoryInfo() {
-    std::map<std::string, unsigned long> result;
-    std::ifstream memoryInfoFile("/proc/meminfo", std::ios::in);
-
-    std::string key;
-    unsigned long value;
-    std::string unit;
-    while (memoryInfoFile >> key >> value >> unit)
-    {
-        Trim(key);
-        if (!key.empty() && key.back() == ':')
+        if (file == nullptr)
         {
-            key.pop_back();
-            Trim(key);
+            throw std::runtime_error(std::strerror(errno));
         }
 
-        result[key] = value;
+        char buffer[256];
+        while (fgets(buffer, sizeof(buffer), file) != nullptr)
+        {
+            result += buffer;
+        }
+
+        pclose(file);
+        return result;
     }
 
-    return result;
+    std::string GetOSVersion() {
+        const auto rawVersionData = Exec("lsb_release --description");
+        auto keyValuePair = Separate(rawVersionData, ':');
+        if (keyValuePair.size() != 2)
+        {
+            throw std::runtime_error("[GetOSVersion] Error while parsing version info.");
+        }
+        return keyValuePair[1];
+    }
+
+    std::map<std::string, unsigned long> GetRandomAccessMemoryInfo() {
+        std::map<std::string, unsigned long> result;
+        std::ifstream memoryInfoFile("/proc/meminfo", std::ios::in);
+
+        std::string key;
+        unsigned long value;
+        std::string unit;
+        while (memoryInfoFile >> key >> value >> unit)
+        {
+            Trim(key);
+            if (!key.empty() && key.back() == ':')
+            {
+                key.pop_back();
+                Trim(key);
+            }
+
+            result[key] = value;
+        }
+
+        return result;
+    }
 }
 
 std::string SysInfo::GetOSName() const {
@@ -182,16 +183,16 @@ std::string SysInfo::GetOSName() const {
 }
 
 std::string SysInfo::GetOSVersion() const {
-    return GetOSVersion();
+    return Linux::GetOSVersion();
 }
 
 uint64_t SysInfo::GetFreeMemory() const {
-    auto ramInfo = GetRandomAccessMemoryInfo();
+    auto ramInfo = Linux::GetRandomAccessMemoryInfo();
     return ramInfo["MemFree"] * 1024;
 }
 
 uint64_t SysInfo::GetTotalMemory() const {
-    auto ramInfo = GetRandomAccessMemoryInfo();
+    auto ramInfo = Linux::GetRandomAccessMemoryInfo();
     return ramInfo["MemTotal"] * 1024;
 }
 
