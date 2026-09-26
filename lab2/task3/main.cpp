@@ -194,7 +194,28 @@ std::vector<Command> ParsePipedCommandLines(const std::vector<std::string>& comm
     return pipedCommands;
 }
 
+void HandleCommand(const Command& command) {
+    ChildProcess commandTask([&command] {
+        try {
+            ExecVP(command.name, command.args);
+        } catch (const std::runtime_error& e) {
+            std::cout << "mini-shell: " << command.name << ": " << e.what() << std::endl;
+        }
+    });
+
+    const auto pid = commandTask.GetPid();
+    const auto status = commandTask.Wait();
+    if (status != EXIT_SUCCESS) {
+        std::cout << "Process " << pid << " ";
+        ChildProcess::DecodeStatus(status);
+    }
+}
+
 void HandlePipedCommands(const std::vector<Command>& pipedCommands) {
+    if (pipedCommands.size() == 1) {
+        HandleCommand(pipedCommands.at(0));
+        return;
+    }
     // std::vector<ChildProcess> processes;
     // processes.reserve(pipedCommands.size());
 
