@@ -7,6 +7,8 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <utility>
+
 #include "utils/StringUtils.h"
 
 
@@ -113,34 +115,62 @@ private:
 class Pipe {
 public:
     Pipe() {
-        int pipefd[2];
-        if (pipe(pipefd) == -1) {
+        int pipeFd[2];
+        if (pipe(pipeFd) == -1) {
             throw std::runtime_error(strerror(errno));
         }
 
-        readFd = pipefd[0];
-        writeFd = pipefd[1];
+        readFd = pipeFd[0];
+        writeFd = pipeFd[1];
     }
 
-    enum class Port {Input, Output};
+    Pipe(const Pipe&) = delete;
+    Pipe& operator=(const Pipe&) = delete;
 
-    void ForwardWriteEnd(int from) {
-        if (dup2(writeFd, from) == -1) {
-            throw std::runtime_error("dup2 failed");
+    Pipe(Pipe&& other) noexcept
+    : readFd(other.readFd)
+    , writeFd(other.writeFd) {
+        other.readFd = -1;
+        other.writeFd = -1;
+    }
+
+    Pipe& operator=(Pipe&& other) noexcept
+    {
+        if (this != &other) {
+            CloseFD(readFd);
+            CloseFD(writeFd);
+            readFd = std::exchange(other.readFd, -1);
+            writeFd = std::exchange(other.writeFd, -1);
+        }
+        return *this;
+    }
+
+    static void CloseFD(int& fd) {
+        if (fd != -1) {
+            close(fd);
+            fd = -1;
         }
     }
 
-    void Close() {
-        close(readFd);
-        close(writeFd);
+    void CloseReadEnd() {
+        CloseFD(readFd);
+    }
 
-        readFd = -1;
-        writeFd = -1;
+    void CloseWriteEnd() {
+        CloseFD(writeFd);
+    }
+
+    int ReadFD() const {
+        return readFd;
+    }
+
+    int WriteFD() const {
+        return writeFd;
     }
 
     ~Pipe() {
-        close(readFd);
-        close(writeFd);
+        CloseFD(readFd);
+        CloseFD(writeFd);
     }
 private:
     int readFd, writeFd;
@@ -157,7 +187,6 @@ Command ParseStringOntoCommand(const std::string& line) {
     std::vector<std::string> args;
 
     commandStream >> commandName;
-
 
     while (commandStream >> arg) {
         args.push_back(arg);
@@ -216,56 +245,51 @@ void HandlePipedCommands(const std::vector<Command>& pipedCommands) {
         HandleCommand(pipedCommands.at(0));
         return;
     }
-    // std::vector<ChildProcess> processes;
-    // processes.reserve(pipedCommands.size());
+    std::vector<ChildProcess> processes;
+    processes.reserve(pipedCommands.size());
 
-    int pipeFd[2];
-    if (pipe(pipeFd) == -1) {
-        throw std::runtime_error(strerror(errno));
-    };
+    std::vector<Pipe> pipes(pipedCommands.size() - 1);
 
-    const int readFd  = pipeFd[0];
-    const int writeFd = pipeFd[1];
+    for (size_t i = 0; i < pipedCommands.size(); ++i) {
+        const Command command = pipedCommands.at(i);
+        const auto writeFd = i != pipes.size() ? pipes.at(i).WriteFD() : -1;
+        const int readFd = i != 0 ? pipes.at(i - 1).ReadFD() : -1;
 
-    ChildProcess commandTask1([&pipedCommands, readFd, writeFd] {
-        try {
-            close(readFd);
-            if (dup2(writeFd, STDOUT_FILENO) == -1) {
-                throw std::runtime_error("dup2 failed");
+        processes.emplace_back([command, writeFd, readFd, &pipes]  {
+            if (readFd != -1) {
+                if (dup2(readFd, STDIN_FILENO) == -1) {
+                    perror("dup2");
+                    exit(EXIT_FAILURE);
+                }
             }
-            close(writeFd);
-            ExecVP(pipedCommands.at(0).name, pipedCommands.at(0).args);
-        } catch (const std::runtime_error& e) {
-            std::cout << "mini-shell: " << pipedCommands.at(0).name << ": " << e.what() << std::endl;
-        }
-    });
+            if (writeFd != -1) {
+                if (dup2(writeFd, STDOUT_FILENO) == -1) {
+                    perror("dup2");
+                    exit(EXIT_FAILURE);
+                }
+            }
 
-    ChildProcess commandTask2([&pipedCommands, pipeFd] {
-        try {
-            close(pipeFd[1]);
-            dup2(pipeFd[0], STDIN_FILENO);
-            ExecVP(pipedCommands.at(1).name, pipedCommands.at(1).args);
-            close(pipeFd[0]);
-        } catch (const std::runtime_error& e) {
-            std::cout << "mini-shell: " << pipedCommands.at(1).name << ": " << e.what() << std::endl;
-        }
-    });
+            for (const auto& pipe : pipes) {
+                close(pipe.ReadFD());
+                close(pipe.WriteFD());
+            }
 
-    close(pipeFd[0]);
-    close(pipeFd[1]);
-
-    const auto pid1 = commandTask1.GetPid();
-    const auto status1 = commandTask1.Wait();
-    if (status1 != EXIT_SUCCESS) {
-        std::cout << "Process " << pid1 << " ";
-        ChildProcess::DecodeStatus(status1);
+            ExecVP(command.name, command.args);
+        });
     }
 
-    const auto pid2 = commandTask2.GetPid();
-    const auto status2 = commandTask2.Wait();
-    if (status2 != EXIT_SUCCESS) {
-        std::cout << "Process " << pid2 << " ";
-        ChildProcess::DecodeStatus(status2);
+    for (auto& pipe : pipes) {
+        pipe.CloseReadEnd();
+        pipe.CloseWriteEnd();
+    }
+
+    for (auto& process : processes) {
+        const auto pid = process.GetPid();
+        const auto status = process.Wait();
+        if (status != EXIT_SUCCESS) {
+            std::cout << "Process " << pid << " ";
+            ChildProcess::DecodeStatus(status);
+        }
     }
 }
 
