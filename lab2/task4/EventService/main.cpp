@@ -79,12 +79,19 @@ int main(const int argc, char *argv[]) {
         size_t bytesRead = fifo.Read(&event, sizeof(EventInfo));
         if (bytesRead == 0) continue;
 
+        FIFO_RAII responseFiFo(std::string(event.responseFiFo));
+        responseFiFo.Open(O_WRONLY);
+
         if (event.command == Command::Shutdown) {
+            auto msg = "The shutdown has been proceeded."s;
+            responseFiFo.Write(msg.data(), msg.size() + 1);
             break;
         }
 
         PrintMessage(event, std::cout);
         PrintMessage(event, eventsLog);
+        auto msg = "The data was recieved. See ya :b"s;
+        responseFiFo.Write(msg.data(), msg.size() + 1);
     }
 
     return EXIT_SUCCESS;
