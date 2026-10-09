@@ -6,11 +6,15 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <format>
-#include <signal.h>
+#include <csignal>
+#include <cstring>
 
 #include "src/File.hpp"
 #include <Shared/EventInfo.h>
 #include <Shared/FIFORAII/FIFORAII.h>
+
+constexpr auto SHUTDOWN_MSG = "The shutdown has been proceeded.";
+constexpr auto DATA_WAS_RECEIVED = "The data was received.";
 
 struct Input {
     std::string pathToFiFo;
@@ -40,6 +44,27 @@ void PrintMessage(const EventInfo& event, std::ostream& os) {
     os << std::endl;
 }
 
+struct InputData {
+    std::ofstream eventLog;
+    FIFO_RAII requestFiFo;
+};
+
+InputData GetInputData(const int argc, char *argv[]) {
+    auto input = ArgumentsParse(argc, argv);
+
+    FIFO_RAII fifo(input.pathToFiFo, true);
+    std::cout << "event-service: listening on " << input.pathToFiFo << std::endl << std::endl;
+    fifo.Open(O_RDWR);
+
+    std::ofstream eventsLog;
+    OpenFile("events.log", eventsLog);
+
+    return {
+        std::move(eventsLog),
+        std::move(fifo)
+    };
+}
+
 void InstallHandler(const int sig, void (*handler)(int), const int flags = 0) {
     struct sigaction sa = {};
     sa.sa_handler = handler;
@@ -57,42 +82,34 @@ static void OnSigTermHandler(int sig) {
 }
 
 int main(const int argc, char *argv[]) {
-    InstallHandler(SIGTERM, OnSigTermHandler);
-    InstallHandler(SIGINT, OnSigTermHandler);
-
-    auto input = ArgumentsParse(argc, argv);
-
-    FIFO_RAII fifo(input.pathToFiFo, true);
-    std::cout << "event-service: listening on " << input.pathToFiFo << std::endl << std::endl;
-
     try {
-        fifo.Open(O_RDONLY);
+        InstallHandler(SIGTERM, OnSigTermHandler);
+        InstallHandler(SIGINT, OnSigTermHandler);
+        auto [eventLog, requestFiFo] = GetInputData(argc, argv);
+
+        while (!terminated) {
+            EventInfo event{};
+            if (!ReadFull(requestFiFo, &event, sizeof(EventInfo))) {
+                if (terminated) break;
+                continue;
+            }
+
+            FIFO_RAII responseFiFo(std::string(event.responseFiFo));
+            responseFiFo.Open(O_WRONLY);
+
+            if (event.command == Command::Shutdown) {
+                responseFiFo.Write(SHUTDOWN_MSG, strlen(SHUTDOWN_MSG) + 1);
+                break;
+            }
+
+            PrintMessage(event, std::cout);
+            PrintMessage(event, eventLog);
+            responseFiFo.Write(DATA_WAS_RECEIVED, strlen(DATA_WAS_RECEIVED) + 1);
+        }
+
+        return EXIT_SUCCESS;
     } catch (std::exception& e) {
         std::cerr << e.what() << std::endl;
         return EXIT_FAILURE;
     }
-    std::ofstream eventsLog;
-    OpenFile("events.log", eventsLog);
-
-    while (!terminated) {
-        EventInfo event{};
-        size_t bytesRead = fifo.Read(&event, sizeof(EventInfo));
-        if (bytesRead == 0) continue;
-
-        FIFO_RAII responseFiFo(std::string(event.responseFiFo));
-        responseFiFo.Open(O_WRONLY);
-
-        if (event.command == Command::Shutdown) {
-            auto msg = "The shutdown has been proceeded."s;
-            responseFiFo.Write(msg.data(), msg.size() + 1);
-            break;
-        }
-
-        PrintMessage(event, std::cout);
-        PrintMessage(event, eventsLog);
-        auto msg = "The data was recieved. See ya :b"s;
-        responseFiFo.Write(msg.data(), msg.size() + 1);
-    }
-
-    return EXIT_SUCCESS;
 }

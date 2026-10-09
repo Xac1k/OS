@@ -12,10 +12,15 @@ public:
     ssize_t Read(void* buf, size_t nbytes) const;
     void Write(const void* buf, size_t nbytes) const;
     [[nodiscard]] int FD() const;
+    void Free();
+    void Close();
     ~FIFO_RAII();
 
     FIFO_RAII(const FIFO_RAII&) = delete;
     FIFO_RAII& operator=(const FIFO_RAII&) = delete;
+
+    FIFO_RAII(FIFO_RAII&&) noexcept;
+    FIFO_RAII& operator=(FIFO_RAII&&) noexcept;
 
 private:
     std::string m_pathToFiFo;
@@ -24,3 +29,5 @@ private:
 
     [[nodiscard]] bool IsOpened() const;
 };
+
+bool ReadFull(const FIFO_RAII& fifo, void* buf, size_t nbytes);
