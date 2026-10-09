@@ -45,7 +45,7 @@ void FIFO_RAII::Open(const int oflag) {
         std::string msg;
 
         if (err == EINTR) {
-            msg = "Interrupted open. Graceful shutdown requested.";
+            msg = "Interrupted open.";
         } else if (err == ENXIO) {
             msg = "Service is not available (no reader on " + m_pathToFiFo + ")";
         } else if (err == ENOENT) {
@@ -58,6 +58,13 @@ void FIFO_RAII::Open(const int oflag) {
     }
 }
 
+void FIFO_RAII::Close() {
+    if (IsOpened()) {
+        close(m_fifoFD);
+        m_fifoFD = -1;
+    }
+}
+
 bool FIFO_RAII::IsOpened() const {
     return m_fifoFD != -1;
 }
@@ -67,10 +74,7 @@ ssize_t FIFO_RAII::Read(void* buf, size_t nbytes) const {
         throw std::runtime_error("FiFo isn't opened yet.");
     }
 
-    ssize_t n;
-    do {
-        n = read(m_fifoFD, buf, nbytes);
-    } while (n == -1 && errno == EINTR);
+    const ssize_t n = read(m_fifoFD, buf, nbytes);
     if (n == -1) {
         throw std::runtime_error("Error reading FIFO: "s + std::strerror(errno));
     }
@@ -83,7 +87,8 @@ void FIFO_RAII::Write(const void* buf, size_t nbytes) const {
         throw std::runtime_error("FiFo isn't opened yet.");
     }
 
-    if (const auto writenBytes = write(m_fifoFD, buf, nbytes); writenBytes == -1) {
+    const auto writenBytes = write(m_fifoFD, buf, nbytes);
+    if (writenBytes == -1) {
         throw std::runtime_error("Error writing FIFO: "s + std::strerror(errno));
     }
 }
@@ -92,7 +97,7 @@ int FIFO_RAII::FD() const {
     return m_fifoFD;
 }
 
-FIFO_RAII::~FIFO_RAII() {
+void FIFO_RAII::Free() {
     if (IsOpened()) {
         close(m_fifoFD);
         m_fifoFD = -1;
@@ -100,4 +105,42 @@ FIFO_RAII::~FIFO_RAII() {
     if (m_newFifo) {
         unlink(m_pathToFiFo.c_str());
     }
+}
+
+FIFO_RAII::~FIFO_RAII() {
+    Free();
+}
+
+FIFO_RAII::FIFO_RAII(FIFO_RAII&& other) noexcept
+: m_pathToFiFo(std::move(other.m_pathToFiFo))
+, m_fifoFD(other.m_fifoFD)
+, m_newFifo(other.m_newFifo)
+{
+    other.m_fifoFD = -1;
+    other.m_newFifo = false;
+}
+
+FIFO_RAII& FIFO_RAII::operator=(FIFO_RAII&& other) noexcept {
+    if (this == &other) return *this;
+
+    FIFO_RAII tmp(std::move(other));
+    std::swap(m_fifoFD, tmp.m_fifoFD);
+    std::swap(m_newFifo, tmp.m_newFifo);
+    std::swap(m_pathToFiFo, tmp.m_pathToFiFo);
+
+    return *this;
+}
+
+bool ReadFull(const FIFO_RAII& fifo, void* buf, size_t nbytes) {
+    size_t remainToRead = nbytes;
+
+    while (remainToRead != 0) {
+        auto shift = nbytes - remainToRead;
+        const size_t bytesRead = fifo.Read(static_cast<char*>(buf) + shift, remainToRead);
+        if (bytesRead == 0) return false;
+
+        remainToRead -= bytesRead;
+    }
+
+    return true;
 }
