@@ -11,7 +11,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 
-FIFO_RAII::FIFO_RAII(const std::string& pathToFiFo, bool newFifo)
+FifoRaii::FifoRaii(const std::string& pathToFiFo, bool newFifo)
 : m_pathToFiFo(pathToFiFo)
 , m_newFifo(newFifo)
 {
@@ -34,7 +34,7 @@ FIFO_RAII::FIFO_RAII(const std::string& pathToFiFo, bool newFifo)
     }
 }
 
-void FIFO_RAII::Open(const int oflag) {
+void FifoRaii::Open(const int oflag) {
     if (IsOpened()) {
         throw std::runtime_error("FiFo is already opened");
     }
@@ -58,18 +58,18 @@ void FIFO_RAII::Open(const int oflag) {
     }
 }
 
-void FIFO_RAII::Close() {
+void FifoRaii::Close() {
     if (IsOpened()) {
         close(m_fifoFD);
         m_fifoFD = -1;
     }
 }
 
-bool FIFO_RAII::IsOpened() const {
+bool FifoRaii::IsOpened() const {
     return m_fifoFD != -1;
 }
 
-ssize_t FIFO_RAII::Read(void* buf, size_t nbytes) const {
+ssize_t FifoRaii::Read(void* buf, size_t nbytes) const {
     if (!IsOpened()) {
         throw std::runtime_error("FiFo isn't opened yet.");
     }
@@ -82,7 +82,7 @@ ssize_t FIFO_RAII::Read(void* buf, size_t nbytes) const {
     return n;
 }
 
-void FIFO_RAII::Write(const void* buf, size_t nbytes) const {
+void FifoRaii::Write(const void* buf, size_t nbytes) const {
     if (!IsOpened()) {
         throw std::runtime_error("FiFo isn't opened yet.");
     }
@@ -93,11 +93,11 @@ void FIFO_RAII::Write(const void* buf, size_t nbytes) const {
     }
 }
 
-int FIFO_RAII::FD() const {
+int FifoRaii::FD() const {
     return m_fifoFD;
 }
 
-void FIFO_RAII::Free() {
+void FifoRaii::Free() {
     if (IsOpened()) {
         close(m_fifoFD);
         m_fifoFD = -1;
@@ -107,11 +107,11 @@ void FIFO_RAII::Free() {
     }
 }
 
-FIFO_RAII::~FIFO_RAII() {
+FifoRaii::~FifoRaii() {
     Free();
 }
 
-FIFO_RAII::FIFO_RAII(FIFO_RAII&& other) noexcept
+FifoRaii::FifoRaii(FifoRaii&& other) noexcept
 : m_pathToFiFo(std::move(other.m_pathToFiFo))
 , m_fifoFD(other.m_fifoFD)
 , m_newFifo(other.m_newFifo)
@@ -120,10 +120,10 @@ FIFO_RAII::FIFO_RAII(FIFO_RAII&& other) noexcept
     other.m_newFifo = false;
 }
 
-FIFO_RAII& FIFO_RAII::operator=(FIFO_RAII&& other) noexcept {
+FifoRaii& FifoRaii::operator=(FifoRaii&& other) noexcept {
     if (this == &other) return *this;
 
-    FIFO_RAII tmp(std::move(other));
+    FifoRaii tmp(std::move(other));
     std::swap(m_fifoFD, tmp.m_fifoFD);
     std::swap(m_newFifo, tmp.m_newFifo);
     std::swap(m_pathToFiFo, tmp.m_pathToFiFo);
@@ -131,7 +131,7 @@ FIFO_RAII& FIFO_RAII::operator=(FIFO_RAII&& other) noexcept {
     return *this;
 }
 
-bool ReadFull(const FIFO_RAII& fifo, void* buf, size_t nbytes) {
+bool ReadFull(const FifoRaii& fifo, void* buf, size_t nbytes) {
     size_t remainToRead = nbytes;
 
     while (remainToRead != 0) {

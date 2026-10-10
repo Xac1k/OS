@@ -46,12 +46,13 @@ Input Parse3Args(const int argc, char *argv[]) {
 Input Parse4Args(const int argc, char *argv[]) {
     if (argc < 4) {
         throw std::invalid_argument(std::format("Usage: [{0} <path_to_fifo> <INFO|WARN|ERROR> <char[50]>] \n"
-                                                           "       [{1} <path_to_fifo> --shutdown]", argv[0], argv[0]));
+                                                           "       [{0} <path_to_fifo> --shutdown]", argv[0]));
     }
     Input input;
 
-    if (strlen(argv[3]) > MAX_MESSAGE_LENGTH) {
-        throw std::invalid_argument(std::format("Message too long: %s", argv[3]));
+    auto messageSize = strlen(argv[3]);
+    if (messageSize > MAX_MESSAGE_LENGTH_WITH_NULL - 1) {
+        throw std::invalid_argument(std::format("Message too long: {0}", argv[3]));
     }
 
     input.pathToFiFo.append(argv[1]);
@@ -78,8 +79,8 @@ int main(const int argc, char *argv[]) {
     try {
         auto [pathToFiFoRequestFiFo, event] = ArgumentsParse(argc, argv);
         auto pathToResponseFiFo = GetPathToResponseFiFo().string();
-        FIFO_RAII requestFiFo(pathToFiFoRequestFiFo);
-        FIFO_RAII responseFiFo(pathToResponseFiFo, true);
+        FifoRaii requestFiFo(pathToFiFoRequestFiFo);
+        FifoRaii responseFiFo(pathToResponseFiFo, true);
         requestFiFo.Open(O_WRONLY | O_NONBLOCK);
 
         requestFiFo.Write(&event,  sizeof(EventInfo));
