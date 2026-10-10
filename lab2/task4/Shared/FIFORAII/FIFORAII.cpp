@@ -1,7 +1,3 @@
-//
-// Created by maksim on 10/3/26.
-//
-
 #include "FIFORAII.h"
 
 #include <cstring>
@@ -11,7 +7,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 
-FIFO_RAII::FIFO_RAII(const std::string& pathToFiFo, bool newFifo)
+FifoRaii::FifoRaii(const std::string& pathToFiFo, bool newFifo)
 : m_pathToFiFo(pathToFiFo)
 , m_newFifo(newFifo)
 {
@@ -34,7 +30,7 @@ FIFO_RAII::FIFO_RAII(const std::string& pathToFiFo, bool newFifo)
     }
 }
 
-void FIFO_RAII::Open(const int oflag) {
+void FifoRaii::Open(const int oflag) {
     if (IsOpened()) {
         throw std::runtime_error("FiFo is already opened");
     }
@@ -58,11 +54,11 @@ void FIFO_RAII::Open(const int oflag) {
     }
 }
 
-bool FIFO_RAII::IsOpened() const {
+bool FifoRaii::IsOpened() const {
     return m_fifoFD != -1;
 }
 
-ssize_t FIFO_RAII::Read(void* buf, size_t nbytes) const {
+ssize_t FifoRaii::Read(void* buf, size_t nbytes) const {
     if (!IsOpened()) {
         throw std::runtime_error("FiFo isn't opened yet.");
     }
@@ -78,7 +74,7 @@ ssize_t FIFO_RAII::Read(void* buf, size_t nbytes) const {
     return n;
 }
 
-void FIFO_RAII::Write(const void* buf, size_t nbytes) const {
+void FifoRaii::Write(const void* buf, size_t nbytes) const {
     if (!IsOpened()) {
         throw std::runtime_error("FiFo isn't opened yet.");
     }
@@ -88,11 +84,11 @@ void FIFO_RAII::Write(const void* buf, size_t nbytes) const {
     }
 }
 
-int FIFO_RAII::FD() const {
+int FifoRaii::FD() const {
     return m_fifoFD;
 }
 
-FIFO_RAII::~FIFO_RAII() {
+FifoRaii::~FifoRaii() {
     if (IsOpened()) {
         close(m_fifoFD);
         m_fifoFD = -1;

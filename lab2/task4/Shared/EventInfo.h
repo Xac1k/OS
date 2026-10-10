@@ -7,14 +7,14 @@ constexpr auto MAX_RESPONSE_LENGTH_WITH_NULL = 255;
 
 enum class Command : uint8_t {Shutdown, Log};
 enum class EventLevel :uint8_t {INFO, WARN, ERROR};
-constexpr auto MAX_MESSAGE_LENGTH = 50;
+constexpr auto MAX_MESSAGE_LENGTH_WITH_NULL = 50;
 constexpr auto MAX_FIFO_PATH_LENGTH = 255;
 #pragma pack(push, 1)
 struct EventInfo {
     Command command;
     pid_t senderPID;
     EventLevel level;
-    char message[MAX_MESSAGE_LENGTH];
+    char message[MAX_MESSAGE_LENGTH_WITH_NULL];
     char responseFiFo[MAX_FIFO_PATH_LENGTH];
 };
 #pragma pack(pop)

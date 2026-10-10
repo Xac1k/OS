@@ -36,7 +36,7 @@ std::string CurrentDateTime() {
 void PrintMessage(const EventInfo& event, std::ostream& os) {
     os << CurrentDateTime() << " [" << EventLevelToString(event.level) << "] "
         << event.senderPID << " ";
-    os.write(event.message, MAX_MESSAGE_LENGTH);
+    os.write(event.message, MAX_MESSAGE_LENGTH_WITH_NULL);
     os << std::endl;
 }
 
@@ -62,7 +62,7 @@ int main(const int argc, char *argv[]) {
 
     auto input = ArgumentsParse(argc, argv);
 
-    FIFO_RAII fifo(input.pathToFiFo, true);
+    FifoRaii fifo(input.pathToFiFo, true);
     std::cout << "event-service: listening on " << input.pathToFiFo << std::endl << std::endl;
 
     try {
@@ -79,7 +79,7 @@ int main(const int argc, char *argv[]) {
         size_t bytesRead = fifo.Read(&event, sizeof(EventInfo));
         if (bytesRead == 0) continue;
 
-        FIFO_RAII responseFiFo(std::string(event.responseFiFo));
+        FifoRaii responseFiFo(std::string(event.responseFiFo));
         responseFiFo.Open(O_WRONLY);
 
         if (event.command == Command::Shutdown) {
