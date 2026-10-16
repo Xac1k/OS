@@ -94,6 +94,15 @@ int main(const int argc, char *argv[]) {
                 continue;
             }
 
+            if (event.responseFiFo[MAX_FIFO_PATH_LENGTH - 1] != '\0') {
+                std::cerr << "FiFo path for response with not null-terminated." << std::endl;
+                continue;
+            }
+
+            if (event.message[MAX_MESSAGE_LENGTH_WITH_NULL - 1] != '\0') {
+                event.message[MAX_MESSAGE_LENGTH_WITH_NULL - 1] = '\0';
+            }
+
             FifoRaii responseFiFo(std::string(event.responseFiFo));
             responseFiFo.Open(O_WRONLY);
 

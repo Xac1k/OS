@@ -32,12 +32,10 @@ std::vector<Result> SolveWithinFewThread(
 void PrintResults(const InputArgs& args, const std::vector<Result>& results) {
     size_t printedOutputs = 0;
 
-    for (size_t i = 0; i < results.size(); ++i) {
-        auto result = results[i];
+    for (const auto& [path, mse] : results) {
+        if (mse > args.threshold) continue;
 
-        if (result.mse > args.threshold) continue;
-
-        std::cout << result.mse << " " << result.path.string() << std::endl;
+        std::cout << mse << " " << path.string() << std::endl;
 
         if (++printedOutputs == args.top) break;
     }
@@ -49,8 +47,14 @@ int main(const int argc, char** argv) {
 
         const auto queryImage = GetPreparedImage(args.queryImage);
         const auto filesForWorkers = GetFilesForWorkers(args.inputDir, args.threads);
+
+        auto start = std::chrono::steady_clock::now();
         const auto results = SolveWithinFewThread(queryImage, filesForWorkers, args.threads);
-        PrintResults(args, results);
+        auto end = std::chrono::steady_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+        std::cout << "Кол-во файлов; Время выполнения в us;" << std::endl;
+        std::cout << results.size() << " " << duration.count() << std::endl;
+
     } catch (const std::exception& e) {
         std::cerr << e.what() << std::endl;
     }

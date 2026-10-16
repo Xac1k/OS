@@ -1,7 +1,3 @@
-//
-// Created by maksim on 10/3/26.
-//
-
 #include "FIFORAII.h"
 
 #include <cstring>

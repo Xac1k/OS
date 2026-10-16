@@ -1,16 +1,16 @@
 #include "Comparator.h"
 
+#include <utility>
+
 #include "src/ImagePreprocessing/ImageProcessing.h"
 
-Comparator::Comparator(const std::vector<std::filesystem::path>& files, const cv::Mat& reference)
-: m_files(files), m_reference(reference) {}
+Comparator::Comparator(const std::vector<std::filesystem::path>& files, cv::Mat  reference)
+: m_files(files), m_reference(std::move(reference)) {}
 
-void Comparator::WorkerLoop() {
+void Comparator::WorkerLoop(const std::stop_token& stopToken) {
     for (const auto& file : m_files) {
-        auto comparable = GetPreparedImage(file);
+        if (stopToken.stop_requested()) break;
 
-        auto mse = ComputeMSE(m_reference, comparable);
-        m_results.emplace_back(file, mse);
     }
 }
 

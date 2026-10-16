@@ -12,9 +12,9 @@ struct Result {
 
 class Comparator : public BaseThread<Comparator> {
 public:
-    Comparator(const std::vector<std::filesystem::path>& files, const cv::Mat& reference);
-    void WorkerLoop();
-    std::vector<Result> Results() const;
+    Comparator(const std::vector<std::filesystem::path>& files, cv::Mat  reference);
+    void WorkerLoop(const std::stop_token& stopToken);
+    [[nodiscard]] std::vector<Result> Results() const;
 private:
     std::vector<std::filesystem::path> m_files;
     cv::Mat m_reference;

@@ -8,6 +8,12 @@ void SRGBToLinear(cv::Mat& src) {
     cv::pow(converted, 2.2, src);
 }
 
+void LinearToSRGB(cv::Mat& src) {
+    cv::Mat converted;
+    src.convertTo(converted, CV_32F, 1.0 / 255.0);
+    cv::pow(converted, 1 / 2.2, src);
+}
+
 cv::Mat GetPreparedImage(const std::filesystem::path& path) {
     cv::Mat img = cv::imread(path.string(), cv::IMREAD_COLOR);
     if (img.empty()) {
