@@ -1,26 +1,39 @@
+#include <thread>
+#include <boost/asio/thread_pool.hpp>
+#include <boost/asio/post.hpp>
+
 #include "src/Args/ParseArgs.h"
 #include "src/ImagePreprocessing/ImageProcessing.h"
 #include "src/ThreadDataPreparing/ThreadDataPreparing.h"
-#include "src/Worker/Comparator.h"
+
+struct Result {
+    std::filesystem::path path;
+    double mse;
+};
 
 std::vector<Result> SolveWithinFewThread(
     const cv::Mat& queryImage,
-    const std::vector<std::vector<std::filesystem::path>>& filesForWorkers,
+    const std::vector<std::filesystem::path>& filesForWorkers,
     const size_t threads
 ) {
-    std::vector<std::unique_ptr<Comparator>> workers;
-    for (int threadID = 0; threadID < threads; ++threadID) {
-        auto comparator = std::make_unique<Comparator>(filesForWorkers.at(threadID), queryImage);
-        comparator->Start();
-        workers.push_back(std::move(comparator));
+    std::vector<Result> results;
+    std::mutex resultsMutex;
+    boost::asio::thread_pool pool(threads);
+
+    for (const auto& file : filesForWorkers) {
+        boost::asio::post(pool, [&results, &queryImage, file, &resultsMutex]() {
+            try {
+                const auto comparable = GetPreparedImage(file);
+                auto mse = ComputeMSE(queryImage, comparable);
+                {
+                    std::lock_guard lock(resultsMutex);
+                    results.emplace_back(file, mse);
+                }
+            } catch (...) {}
+        });
     }
 
-    std::vector<Result> results;
-    for (int threadID = 0; threadID < threads; ++threadID) {
-        workers.at(threadID)->Wait();
-        auto threadResults = workers.at(threadID)->Results();
-        results.insert(results.end(), threadResults.begin(), threadResults.end());
-    }
+    pool.join();
 
     std::ranges::sort(results, [](const Result& first, const Result& second) {
        return first.mse < second.mse;
@@ -46,12 +59,12 @@ int main(const int argc, char** argv) {
         const auto args = ParseArgs(argc, argv);
 
         const auto queryImage = GetPreparedImage(args.queryImage);
-        const auto filesForWorkers = GetFilesForWorkers(args.inputDir, args.threads);
+        const auto filesForWorkers = GetFilesForWorkers(args.inputDir);
 
-        auto start = std::chrono::steady_clock::now();
+        const auto start = std::chrono::steady_clock::now();
         const auto results = SolveWithinFewThread(queryImage, filesForWorkers, args.threads);
-        auto end = std::chrono::steady_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+        const auto end = std::chrono::steady_clock::now();
+        const auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
         std::cout << "Кол-во файлов; Время выполнения в us;" << std::endl;
         std::cout << results.size() << " " << duration.count() << std::endl;
 

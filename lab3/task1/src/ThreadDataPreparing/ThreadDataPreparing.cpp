@@ -24,28 +24,9 @@ std::vector<std::filesystem::path> RecursiveCollectingFiles(const std::filesyste
     return files;
 }
 
-std::vector<std::vector<std::filesystem::path>> SliceFilesOntoEquivalentParts(const std::vector<std::filesystem::path>& files, const size_t parts) {
-    std::vector slices(parts, std::vector<std::filesystem::path>());
-
-    size_t sliceID = 0, treatedFiles = 0;
-    while (files.size() != treatedFiles) {
-        slices.at(sliceID).push_back(files.at(treatedFiles));
-
-        sliceID++;
-        treatedFiles++;
-
-        if (sliceID == parts) {
-            sliceID = 0;
-        }
-    }
-
-    return slices;
-}
-
-std::vector<std::vector<std::filesystem::path>> GetFilesForWorkers(const std::filesystem::path& root, const size_t workers) {
+std::vector<std::filesystem::path> GetFilesForWorkers(const std::filesystem::path& root) {
     auto files = RecursiveCollectingFiles(root);
     std::ranges::sort(files);
-    auto slicedImagesForThreads = SliceFilesOntoEquivalentParts(files, workers);
 
-    return slicedImagesForThreads;
+    return files;
 }
