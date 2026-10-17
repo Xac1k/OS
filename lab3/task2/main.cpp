@@ -35,7 +35,8 @@ Result SolveWithinFewThread(
     const InputArgs& args,
     const std::vector<std::filesystem::path>& filesForWorkers
 ) {
-    boost::asio::thread_pool pool(args.threads);
+    boost::asio::thread_pool pool(args.threads);// Почему увеличение числа потоков не даёт линейное увеличение производ?
+    // Доступ к файлам - проблема
     std::atomic<size_t> failed = 0;
 
     for (const auto& file : filesForWorkers) {

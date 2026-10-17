@@ -2,6 +2,22 @@
 
 constexpr auto IMAGE_SIZE = 256;
 
+class SignleOutput
+{
+public:
+    static SignleOutput& Get() {
+        static SignleOutput out;
+        return out;
+    }
+
+    void Print(const std::string& msg) {
+        std::lock_guard lock(mutex);
+        std::cout << msg << std::endl;
+    }
+private:
+    std::mutex mutex;
+};
+
 void SRGBToLinear(cv::Mat& src) {
     cv::Mat converted;
     src.convertTo(converted, CV_32F, 1.0 / 255.0);
@@ -15,10 +31,16 @@ void LinearToSRGB(cv::Mat& src) {
 }
 
 cv::Mat GetPreparedImage(const std::filesystem::path& path) {
+    const auto start = std::chrono::steady_clock::now();
     cv::Mat img = cv::imread(path.string(), cv::IMREAD_COLOR);
     if (img.empty()) {
         throw std::runtime_error("Failed to load image: " + path.string());
     }
+
+    const auto end = std::chrono::steady_clock::now();
+    const auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+
+    SignleOutput::Get().Print(std::to_string(duration.count()));
 
     cv::cvtColor(img, img, cv::COLOR_BGR2RGB);
     SRGBToLinear(img);

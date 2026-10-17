@@ -18,7 +18,15 @@ std::vector<Result> SolveWithinFewThread(
 ) {
     std::vector<Result> results;
     std::mutex resultsMutex;
-    boost::asio::thread_pool pool(threads);
+    boost::asio::thread_pool pool(threads); //Почему увеличение потоков в 8 раз не даёт увеличение в 8 раз.
+    //Законы М Далла. Какая часть работы реально распараллеливается?
+
+    // S = 1 / ((1 - P) + P/N)
+    // 8339624 / 2316618  = 1 / ((1 - P) + P/16)
+    // - 3.599913322 * P + 3.599913322/16 * P = 1 - 3.599913322
+    // −3.374918739P = −2.599913322
+    // P = −2.599913322 / −3.374918739
+    // P = 0.770363236
 
     for (const auto& file : filesForWorkers) {
         boost::asio::post(pool, [&results, &queryImage, file, &resultsMutex]() {
