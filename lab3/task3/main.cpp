@@ -1,6 +1,7 @@
 #include <boost/context/fiber.hpp>
 
 #include <iostream>
+#include <list>
 #include <utility>
 
 namespace ctx = boost::context;
@@ -47,6 +48,7 @@ public:
                     task->state = TaskState::READY;
                 } else {
                     task->state = TaskState::FINISHED;
+                    //Удалять не нужные fiber
                 }
                 currentContext = nullptr;
             }
@@ -64,8 +66,14 @@ private:
         });
     }
 
-    std::vector<std::unique_ptr<TaskContext>> tasks;
+    std::list<std::unique_ptr<TaskContext>> tasks;
 };
+
+void Spawn(const Scheduler::Task& task) {
+    if (currentContext && currentContext->scheduler) {
+        currentContext->scheduler->Spawn(task);
+    }
+}
 
 void Yield() {
     if (currentContext && currentContext->scheduler) {
@@ -73,11 +81,16 @@ void Yield() {
     }
 }
 
+void TaskY() {
+    std::cout << "Y" << '\n';
+}
+
 void TaskA()
 {
     for (int i = 1; i <= 3; ++i)
     {
         std::cout << "A" << i << '\n';
+        Spawn(TaskY);
         Yield();
     }
 }
