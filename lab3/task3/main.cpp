@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <list>
+#include <ranges>
 #include <utility>
 
 namespace ctx = boost::context;
@@ -9,12 +10,16 @@ namespace ctx = boost::context;
 enum class TaskState {
     READY,
     RUNNING,
+    WAITING,
     FINISHED
 };
 
 struct TaskContext {
+    size_t pid = 0;
     ctx::fiber fiber;
     TaskState state = TaskState::READY;
+    std::vector<size_t> pending;
+
     class Scheduler* scheduler = nullptr;
 };
 
@@ -24,34 +29,39 @@ class Scheduler {
 public:
     using Task = std::function<void()>;
 
-    void Spawn(Task task) {
+    size_t Spawn(Task task) {
+        auto pid = pidCounter++;
         auto ctx = std::make_unique<TaskContext>();
         ctx->scheduler = this;
+        ctx->pid = pid;
         ctx->fiber = ctx::fiber([task = std::move(task), ctx = ctx.get()](ctx::fiber&& runContinuation) {
             ctx->fiber = std::move(runContinuation);
             task();
             return std::move(ctx->fiber);
         });
 
-        tasks.push_back(std::move(ctx));
+        tasks.emplace(pid, std::move(ctx));
+        return pid;
     }
 
     void Run() {
-        while (HasNotFinished()) {
-            for (auto& task: tasks) {
+        while (!tasks.empty()) {
+            for (auto& [pid, task]: tasks) {
                 if (task->state != TaskState::READY) continue;
 
                 task->state = TaskState::RUNNING;
                 currentContext = task.get();
                 task->fiber = std::move(task->fiber).resume();
-                if (task->fiber) {
-                    task->state = TaskState::READY;
-                } else {
+                if (!task->fiber) {
                     task->state = TaskState::FINISHED;
-                    //Удалять не нужные fiber
+                    PingPendingTasks(task->pid);
+                    finished.push_back(pid);
+                } else if (task->state == TaskState::RUNNING) {
+                    task->state = TaskState::READY;
                 }
                 currentContext = nullptr;
             }
+            ClearFinished();
         }
     }
 
@@ -59,20 +69,52 @@ public:
         if (!currentContext) return;
         currentContext->fiber = std::move(currentContext->fiber).resume();
     }
+
+    void Join(const size_t pid) {
+        if (!currentContext) return;
+        if (pid == currentContext->pid) return;
+
+        currentContext->state = TaskState::WAITING;
+        const auto pendingPid = currentContext->pid;
+
+        const auto& prerequisite = GetTasksByPid(pid);
+        prerequisite->pending.push_back(pendingPid);
+    }
 private:
-    bool HasNotFinished() {
-        return std::ranges::any_of(tasks, [](const auto& task) {
-            return task->state != TaskState::FINISHED;
-        });
+    void PingPendingTasks(const size_t pid) {
+        const auto& task = GetTasksByPid(pid);
+        for (const auto& pending: task->pending) {
+            const auto& pendingTask = GetTasksByPid(pending);
+            pendingTask->state = TaskState::READY;
+        }
     }
 
-    std::list<std::unique_ptr<TaskContext>> tasks;
+    void ClearFinished() {
+        for (auto& pid: finished) {
+            tasks.erase(pid);
+        }
+        finished.clear();
+    }
+
+    std::unique_ptr<TaskContext>& GetTasksByPid(const size_t pid) {
+        const auto it = tasks.find(pid);
+        if (it == tasks.end()) {
+            throw std::invalid_argument("The process with pid:" + std::to_string(pid) + " was not found.");
+        }
+
+        return it->second;
+    };
+
+    std::vector<size_t> finished;
+    std::unordered_map<size_t, std::unique_ptr<TaskContext>> tasks;
+    size_t pidCounter = 0;
 };
 
-void Spawn(const Scheduler::Task& task) {
+size_t Spawn(const Scheduler::Task& task) {
     if (currentContext && currentContext->scheduler) {
-        currentContext->scheduler->Spawn(task);
+        return currentContext->scheduler->Spawn(task);
     }
+    throw std::runtime_error("The environment wasn't set up");
 }
 
 void Yield() {
@@ -81,8 +123,21 @@ void Yield() {
     }
 }
 
+size_t GetPid() {
+    if (currentContext) return currentContext->pid;
+    throw std::runtime_error("The environment wasn't set up");
+}
+
+void Join(const size_t pid) {
+    if (!currentContext) return;
+    currentContext->scheduler->Join(pid);
+}
+
 void TaskY() {
-    std::cout << "Y" << '\n';
+    for (int i = 1; i <= 4; ++i) {
+        std::cout << "Y" << '\n';
+        Yield();
+    }
 }
 
 void TaskA()
@@ -90,7 +145,8 @@ void TaskA()
     for (int i = 1; i <= 3; ++i)
     {
         std::cout << "A" << i << '\n';
-        Spawn(TaskY);
+        const auto pid = Spawn(TaskY);
+        Join(pid);
         Yield();
     }
 }
